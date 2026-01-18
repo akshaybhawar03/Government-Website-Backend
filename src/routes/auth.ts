@@ -24,21 +24,28 @@ router.post("/register", async (req: Request, res: Response) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
-  await connectToDatabase();
+  try {
+    await connectToDatabase();
 
-  const exists = await User.exists({ email: parsed.data.email.toLowerCase() });
-  if (exists) return res.status(409).json({ error: "Email already registered" });
+    const exists = await User.exists({ email: parsed.data.email.toLowerCase() });
+    if (exists) return res.status(409).json({ error: "Email already registered" });
 
-  const password = await hashPassword(parsed.data.password);
+    const password = await hashPassword(parsed.data.password);
 
-  await User.create({
-    name: parsed.data.name.trim(),
-    email: parsed.data.email.toLowerCase(),
-    password,
-    role: "user",
-  });
+    await User.create({
+      name: parsed.data.name.trim(),
+      email: parsed.data.email.toLowerCase(),
+      password,
+      role: "user",
+    });
 
-  return res.status(201).json({ ok: true });
+    return res.status(201).json({ ok: true });
+  } catch (e: any) {
+    if (e?.code === 11000) {
+      return res.status(409).json({ error: "Email already registered" });
+    }
+    return res.status(500).json({ error: "Registration failed" });
+  }
 });
 
 const loginSchema = z.object({
@@ -50,23 +57,27 @@ router.post("/login", async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
-  await connectToDatabase();
+  try {
+    await connectToDatabase();
 
-  const user: any = await User.findOne({ email: parsed.data.email.toLowerCase() });
-  if (!user) return res.status(401).json({ error: "Invalid email or password" });
+    const user: any = await User.findOne({ email: parsed.data.email.toLowerCase() });
+    if (!user) return res.status(401).json({ error: "Invalid email or password" });
 
-  const ok = await verifyPassword(parsed.data.password, String(user.password));
-  if (!ok) return res.status(401).json({ error: "Invalid email or password" });
+    const ok = await verifyPassword(parsed.data.password, String(user.password));
+    if (!ok) return res.status(401).json({ error: "Invalid email or password" });
 
-  const token = signAuthToken({
-    sub: String(user._id),
-    name: user.name ? String(user.name) : undefined,
-    email: String(user.email),
-    role: user.role === "admin" ? "admin" : "user",
-  });
+    const token = signAuthToken({
+      sub: String(user._id),
+      name: user.name ? String(user.name) : undefined,
+      email: String(user.email),
+      role: user.role === "admin" ? "admin" : "user",
+    });
 
-  res.setHeader("Set-Cookie", createAuthCookie(token));
-  return res.json({ ok: true });
+    res.setHeader("Set-Cookie", createAuthCookie(token));
+    return res.json({ ok: true });
+  } catch {
+    return res.status(500).json({ error: "Login failed" });
+  }
 });
 
 router.post("/logout", async (_req: Request, res: Response) => {
