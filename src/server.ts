@@ -10,6 +10,10 @@ const app = express();
 
 app.use(express.json({ limit: "1mb" }));
 
+app.get("/", (_req: Request, res: Response) => {
+  return res.json({ ok: true, service: "government-website-backend" });
+});
+
 app.get("/health", (_req: Request, res: Response) => {
   return res.json({ ok: true });
 });
